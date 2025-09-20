@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PowerWorld Chatbot – Texas A&M</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+    #chatbox {
+      width: 700px;
+      background: #ffffff;
+      border-left: 8px solid #500000;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      color: #500000;
+      margin-bottom: 10px;
+    }
+    .subheading {
+      font-size: 14px;
+      color: #5B6770;
+      margin-bottom: 20px;
+    }
+    #messages {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .message {
+      margin: 8px 0;
+      padding: 10px 15px;
+      border-radius: 12px;
+      max-width: 80%;
+      line-height: 1.4;
+    }
+    .bot {
+      background: #e6d8d0;
+      align-self: flex-start;
+      color: #3d0000;
+    }
+    .user {
+      background: #dbe4e8;
+      align-self: flex-end;
+      color: #333;
+    }
+    #upload-section {
+      margin-bottom: 20px;
+    }
+    input[type="file"] {
+      margin-right: 10px;
+    }
+    input[type="text"] {
+      padding: 8px;
+      width: 70%;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      padding: 8px 12px;
+      background-color: #500000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #3a0000;
+    }
+    #spinner {
+      display: none;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="chatbox">
+    <h1>Howdy!</h1>
+    <div class="subheading">Please upload your <code>.pwb</code> file and then ask a question about the case.</div>
+
+    <div id="messages">
+      <div class="message bot">Howdy! Please upload your PowerWorld file and then ask a question about the case.</div>
+    </div>
+
+    <div id="upload-section">
+      <form id="form" enctype="multipart/form-data">
+        <input type="file" id="file" name="file" accept=".pwb" />
+        <button type="submit">Upload</button>
+      </form>
+      <div id="spinner">Processing...</div>
+    </div>
+
+    <div>
+      <input type="text" id="question" placeholder="Ask me something..." />
+      <button onclick="ask()">Ask</button>
+    </div>
+  </div>
+
+  <script>
+    const messages = document.getElementById("messages");
+    const spinner = document.getElementById("spinner");
+
+    function addMessage(text, sender) {
+      const msg = document.createElement("div");
+      msg.className = "message " + sender;
+      msg.innerText = text;
+      messages.appendChild(msg);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    document.getElementById("form").onsubmit = async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById("file");
+      if (!fileInput.files.length) {
+        addMessage("Please select a .pwb file to upload.", "bot");
+        return;
+      }
+
+      spinner.style.display = "block";
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      addMessage("Uploading " + fileInput.files[0].name + "...", "user");
+
+      const res = await fetch("/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const result = await res.json();
+      spinner.style.display = "none";
+
+      if (result.error) {
+        addMessage(result.error, "bot");
+        return;
+      }
+
+      addMessage(result.message, "bot");
+    };
+
+    async function ask() {
+      const q = document.getElementById("question").value.trim();
+      if (!q) return;
+
+      addMessage(q, "user");
+      document.getElementById("question").value = "";
+
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q })
+      });
+
+      const result = await res.json();
+      if (result.answer) {
+        addMessage(result.answer, "bot");
+      } else if (result.error) {
+        addMessage(result.error, "bot");
+      }
+    }
+  </script>
+</body>
+</html>
