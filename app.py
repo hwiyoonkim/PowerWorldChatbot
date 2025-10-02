@@ -40,20 +40,16 @@ def transpose_simauto(data, fields):
     PowerWorld often returns data as column-major:
       data = [ [values_for_field1], [values_for_field2], ... ]
     We need to transpose -> rows per element.
-
-    If data already looks row-major (len(inner)==len(fields)), keep as-is.
     """
     if not data:
         return []
 
-    # If it looks like column-major: outer length == num fields AND each inner is a list/tuple
     column_major = (
         len(data) == len(fields) and
         all(hasattr(col, "__iter__") and not isinstance(col, (str, bytes)) for col in data)
     )
 
     if column_major:
-        # Number of elements = min length across field columns
         n_elems = min(len(col) for col in data) if data else 0
         rows = []
         for i in range(n_elems):
@@ -61,29 +57,21 @@ def transpose_simauto(data, fields):
             rows.append(row)
         return rows
     else:
-        # Assume already row-major
         return [r[:len(fields)] for r in data]
 
 
 def is_valid_row(obj, fields, row):
-    """
-    Reject header/junk rows. We validate using expected key columns.
-    """
+    """Reject header/junk rows based on expected key columns"""
     try:
         if obj == "Bus":
-            # Bus: row[0]=BusNum (int), row[1]=BusName (non-empty)
             return str(row[0]).strip().isdigit() and len(str(row[1]).strip()) > 0
         elif obj == "Gen":
-            # Gen: BusNum int, GenID non-empty
             return str(row[0]).strip().isdigit() and len(str(row[1]).strip()) > 0
         elif obj == "Load":
-            # Load: BusNum int, LoadID non-empty
             return str(row[0]).strip().isdigit() and len(str(row[1]).strip()) > 0
         elif obj == "Branch":
-            # Branch: FromBus int, ToBus int, Circuit non-empty
             return str(row[0]).strip().isdigit() and str(row[1]).strip().isdigit() and len(str(row[2]).strip()) > 0
         else:
-            # Default: accept
             return True
     except Exception:
         return False
@@ -112,11 +100,9 @@ def extract_and_store_case_data(pw):
                 print(f"⚠️ Could not get {obj} data: {result}")
                 continue
 
-            # Create table (use quoted identifiers so ':' is allowed)
             col_defs = ", ".join([f'"{f}" TEXT' for f in fields])
             c.execute(f'CREATE TABLE IF NOT EXISTS "{obj}" ({col_defs})')
 
-            # Transpose if needed
             rows = transpose_simauto(data, fields)
 
             placeholders = ", ".join(["?"] * len(fields))
@@ -236,18 +222,50 @@ def download_table(table):
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.get_json() or {}
-    # accept both "question" and "query" (your front-end uses "query")
     question = (data.get("question") or data.get("query") or "").lower().strip()
 
     conn = sqlite3.connect("caseinfo.db")
     c = conn.cursor()
 
     try:
-        if "how many buses" in question:
+        # --- Summarize the case ---
+        if "summarize" in question or "summary" in question:
+            parts = {}
+            for table in ["Bus", "Gen", "Load", "Branch"]:
+                try:
+                    c.execute(f'SELECT COUNT(*) FROM "{table}"')
+                    parts[table] = c.fetchone()[0]
+                except:
+                    parts[table] = 0
+            return jsonify({"answer":
+                f"This case contains {parts['Bus']} buses, "
+                f"{parts['Gen']} generators, "
+                f"{parts['Load']} loads, and "
+                f"{parts['Branch']} branches."
+            })
+
+        # --- Counts ---
+        if "how many buses" in question or ("number" in question and "bus" in question):
             c.execute('SELECT COUNT(*) FROM "Bus"')
             count = c.fetchone()[0]
-            return jsonify({"answer": f"There are {count} buses in the system."})
+            return jsonify({"answer": f"There are {count} buses in this case."})
 
+        if "how many gen" in question or "how many generators" in question:
+            c.execute('SELECT COUNT(*) FROM "Gen"')
+            count = c.fetchone()[0]
+            return jsonify({"answer": f"There are {count} generators in this case."})
+
+        if "how many loads" in question:
+            c.execute('SELECT COUNT(*) FROM "Load"')
+            count = c.fetchone()[0]
+            return jsonify({"answer": f"There are {count} loads in this case."})
+
+        if "how many branch" in question or "how many lines" in question:
+            c.execute('SELECT COUNT(*) FROM "Branch"')
+            count = c.fetchone()[0]
+            return jsonify({"answer": f"There are {count} branches (lines) in this case."})
+
+        # --- Bus kV queries ---
         if "bus" in question and "kv" in question:
             m = re.search(r'bus\s+(\d+)', question)
             if m:
@@ -255,15 +273,16 @@ def ask():
                 c.execute('SELECT "BusName","NomKV" FROM "Bus" WHERE "BusNum"=?', (busnum,))
                 row = c.fetchone()
                 if row:
-                    return jsonify({"answer": f"Bus {busnum} ({row[0]}) nominal kV: {row[1]}"} )
+                    return jsonify({"answer": f"Bus {busnum} ({row[0]}) operates at {row[1]} kV"} )
                 else:
                     return jsonify({"answer": f"No info found for bus {busnum}."})
 
-        return jsonify({"answer": f"Sorry, I can't answer that yet. You asked: {question}"}), 200
+        # --- Default fallback ---
+        return jsonify({"answer": f"Sorry, I can’t answer that yet. You asked: {question}"})
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"answer": f"Error querying DB: {e}"}), 200
+        return jsonify({"answer": f"Error querying DB: {e}"})
 
     finally:
         conn.close()
