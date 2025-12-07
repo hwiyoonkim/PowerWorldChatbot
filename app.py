@@ -13,42 +13,25 @@ UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-
-# -----------------------------
-# DB utils
-# -----------------------------
 def init_db():
     conn = sqlite3.connect('caseinfo.db')
     c = conn.cursor()
-    # wipe all tables cleanly
     c.execute("PRAGMA writable_schema = 1;")
     c.execute("DELETE FROM sqlite_master WHERE type IN ('table','index','trigger');")
     c.execute("PRAGMA writable_schema = 0;")
     conn.commit()
     conn.close()
 
-
 def ensure_text(x):
     return "" if x is None else str(x)
 
-
-# -----------------------------
-# SimAuto -> SQLite helpers
-# -----------------------------
 def transpose_simauto(data, fields):
-    """
-    PowerWorld often returns data as column-major:
-      data = [ [values_for_field1], [values_for_field2], ... ]
-    We need to transpose -> rows per element.
-    """
     if not data:
         return []
-
     column_major = (
         len(data) == len(fields) and
         all(hasattr(col, "__iter__") and not isinstance(col, (str, bytes)) for col in data)
     )
-
     if column_major:
         n_elems = min(len(col) for col in data) if data else 0
         rows = []
@@ -59,9 +42,7 @@ def transpose_simauto(data, fields):
     else:
         return [r[:len(fields)] for r in data]
 
-
 def is_valid_row(obj, fields, row):
-    """Reject header/junk rows based on expected key columns"""
     try:
         if obj == "Bus":
             return str(row[0]).strip().isdigit() and len(str(row[1]).strip()) > 0
@@ -76,15 +57,9 @@ def is_valid_row(obj, fields, row):
     except Exception:
         return False
 
-
 def extract_and_store_case_data(pw):
-    """
-    Extract selected stable fields and store into SQLite.
-    Now transposes SimAuto output (column-major -> row-major) and validates rows.
-    """
     conn = sqlite3.connect("caseinfo.db")
     c = conn.cursor()
-
     schema = {
         "Bus":    ["BusNum", "BusName", "NomKV",     "AreaNum", "ZoneNum"],
         "Gen":    ["BusNum", "GenID",   "GenMW",     "GenMvar", "Status"],
@@ -97,17 +72,13 @@ def extract_and_store_case_data(pw):
             print(f"Extracting {obj} with fields: {fields}")
             result, data = pw.GetParametersMultipleElement(obj, fields, "")
             if result != "":
-                print(f"⚠️ Could not get {obj} data: {result}")
+                print(f"Could not get {obj} data: {result}")
                 continue
-
             col_defs = ", ".join([f'"{f}" TEXT' for f in fields])
             c.execute(f'CREATE TABLE IF NOT EXISTS "{obj}" ({col_defs})')
-
             rows = transpose_simauto(data, fields)
-
             placeholders = ", ".join(["?"] * len(fields))
             insert_sql = f'INSERT INTO "{obj}" VALUES ({placeholders})'
-
             inserted = 0
             for row in rows:
                 if not is_valid_row(obj, fields, row):
@@ -117,59 +88,41 @@ def extract_and_store_case_data(pw):
                     c.execute(insert_sql, clean_row)
                     inserted += 1
             print(f"Inserted {inserted} {obj} rows")
-
         except Exception as e:
             print(f"Error extracting {obj}: {e}")
             traceback.print_exc()
-
     conn.commit()
     conn.close()
 
-
-# -----------------------------
-# Routes
-# -----------------------------
 @app.route('/')
 def index():
     return render_template('index.html')
 
-
 @app.route('/upload', methods=['POST'])
 def upload():
     pythoncom.CoInitialize()
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
-
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-
     filename = secure_filename(file.filename)
     pwb_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(pwb_path)
-
     print(f"Trying to open case: {pwb_path}")
-    print(f"File exists: {os.path.exists(pwb_path)}")
-
     try:
         pw = Dispatch("pwrworld.SimulatorAuto")
         result = pw.OpenCase(pwb_path)
         print("OpenCase result:", result)
-
         init_db()
         extract_and_store_case_data(pw)
-
         return jsonify({"message": f"Successfully opened and stored case: {filename}"}), 200
-
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': f"Failed to open or extract case: {e}"}), 500
 
-
 @app.route('/view/<table>')
 def view_table(table):
-    """Render the whole table as HTML (no row limit)."""
     conn = sqlite3.connect("caseinfo.db")
     c = conn.cursor()
     try:
@@ -180,7 +133,6 @@ def view_table(table):
         return f"<h3>Error: {e}</h3>"
     finally:
         conn.close()
-
     html = f"<h2>{table} (rows: {len(rows)})</h2>"
     html += f'<p><a href="/download/{table}">Download {table} as CSV</a> | <a href="/">Back</a></p>'
     html += "<div style='overflow:auto; max-height:75vh; border:1px solid #ddd;'>"
@@ -191,10 +143,8 @@ def view_table(table):
     html += "</table></div>"
     return html
 
-
 @app.route('/download/<table>')
 def download_table(table):
-    """Download a table as CSV."""
     conn = sqlite3.connect("caseinfo.db")
     c = conn.cursor()
     try:
@@ -206,29 +156,26 @@ def download_table(table):
         return f"<h3>Error: {e}</h3>"
     finally:
         conn.close()
-
     def generate_csv():
         yield ",".join(cols) + "\n"
         for row in rows:
             yield ",".join([("" if v is None else str(v)) for v in row]) + "\n"
-
     return Response(
         generate_csv(),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment;filename={table}.csv"}
     )
 
-
 @app.route('/ask', methods=['POST'])
 def ask():
+    def match_keywords(q, keywords):
+        return any(k in q for k in keywords)
+
     data = request.get_json() or {}
     question = (data.get("question") or data.get("query") or "").lower().strip()
-
     conn = sqlite3.connect("caseinfo.db")
     c = conn.cursor()
-
     try:
-        # --- Summarize the case ---
         if "summarize" in question or "summary" in question:
             parts = {}
             for table in ["Bus", "Gen", "Load", "Branch"]:
@@ -244,28 +191,26 @@ def ask():
                 f"{parts['Branch']} branches."
             })
 
-        # --- Counts ---
-        if "how many buses" in question or ("number" in question and "bus" in question):
+        if match_keywords(question, ["how many buses", "number of buses", "count of buses", "total buses"]):
             c.execute('SELECT COUNT(*) FROM "Bus"')
             count = c.fetchone()[0]
             return jsonify({"answer": f"There are {count} buses in this case."})
 
-        if "how many gen" in question or "how many generators" in question:
+        if match_keywords(question, ["how many generators", "number of generators", "count of generators", "total generators", "number of gens"]):
             c.execute('SELECT COUNT(*) FROM "Gen"')
             count = c.fetchone()[0]
             return jsonify({"answer": f"There are {count} generators in this case."})
 
-        if "how many loads" in question:
+        if match_keywords(question, ["how many loads", "number of loads", "count of loads", "total loads"]):
             c.execute('SELECT COUNT(*) FROM "Load"')
             count = c.fetchone()[0]
             return jsonify({"answer": f"There are {count} loads in this case."})
 
-        if "how many branch" in question or "how many lines" in question:
+        if match_keywords(question, ["how many branches", "number of branches", "count of branches", "number of lines", "total transmission lines"]):
             c.execute('SELECT COUNT(*) FROM "Branch"')
             count = c.fetchone()[0]
             return jsonify({"answer": f"There are {count} branches (lines) in this case."})
 
-        # --- Bus kV queries ---
         if "bus" in question and "kv" in question:
             m = re.search(r'bus\s+(\d+)', question)
             if m:
@@ -273,11 +218,10 @@ def ask():
                 c.execute('SELECT "BusName","NomKV" FROM "Bus" WHERE "BusNum"=?', (busnum,))
                 row = c.fetchone()
                 if row:
-                    return jsonify({"answer": f"Bus {busnum} ({row[0]}) operates at {row[1]} kV"} )
+                    return jsonify({"answer": f"Bus {busnum} ({row[0]}) operates at {row[1]} kV"})
                 else:
                     return jsonify({"answer": f"No info found for bus {busnum}."})
 
-        # --- Default fallback ---
         return jsonify({"answer": f"Sorry, I can’t answer that yet. You asked: {question}"})
 
     except Exception as e:
@@ -286,7 +230,6 @@ def ask():
 
     finally:
         conn.close()
-
 
 if __name__ == '__main__':
     init_db()

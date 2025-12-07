@@ -1,0 +1,33 @@
+Instruction,Expected,Predicted,Exact Match,F1 Score,Hallucinated,Latency (s)
+How many buses are there?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.034
+Number of buses?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.013
+Count of buses?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.019
+Total buses in the system?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.016
+How many generators are in the system?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.016
+Number of gens?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.014
+Count of generators?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.019
+Total generators?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.017
+How many loads does the case have?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.015
+Number of loads?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.016
+Count of loads?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.019
+Total loads?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.014
+How many branches are there?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.016
+Number of lines?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.017
+Count of branches?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.029
+Total transmission lines?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.016
+How many branches are there please?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.019
+Count of branches please?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.015
+Number of gens please?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.017
+How many generators are in the system please?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.014
+Number of buses please?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.012
+Total transmission lines please?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.015
+Count of generators please?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.015
+Total loads please?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.013
+How many buses are there please?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.014
+Count of buses please?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.018
+Total generators please?,There are 0 generators in this case.,There are 45 generators in this case.,False,0.86,False,2.019
+Number of loads please?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.014
+Total buses in the system please?,There are 0 buses in this case.,There are 37 buses in this case.,False,0.86,False,2.015
+Count of loads please?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.016
+Number of lines please?,There are 0 branches in this case.,There are 89 branches (lines) in this case.,False,0.8,False,2.017
+How many loads does the case have please?,There are 0 loads in this case.,There are 27 loads in this case.,False,0.86,False,2.015
